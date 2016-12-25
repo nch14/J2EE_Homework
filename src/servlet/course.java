@@ -1,10 +1,9 @@
 package servlet;
 
 import model.CourseTest;
+import util.Database;
 
-import javax.sql.DataSource;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
@@ -23,65 +22,16 @@ import java.util.Properties;
 @WebServlet(name = "course", urlPatterns = "/course")
 public class course extends HttpServlet {
 
-    private DataSource datasource = null;
-
-
-    @Override
-    public void init() throws ServletException {
-        super.init();
-        InitialContext jndiContext = null;
-
-        Properties properties = new Properties();
-        properties.put(javax.naming.Context.PROVIDER_URL, "jnp:///");
-        properties.put(javax.naming.Context.INITIAL_CONTEXT_FACTORY, "org.apache.naming.java.javaURLContextFactory");
-        try {
-            jndiContext = new InitialContext(properties);
-            datasource = (DataSource) jndiContext.lookup("java:comp/env/jdbc/javaee");
-            System.out.println("got context");
-            System.out.println("About to get ds---J2EE Homework");
-        } catch (NamingException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-    }
-
-    private boolean checkUserValid(HttpServletRequest req, HttpServletResponse res) throws Exception {
-        Connection connection = null;
-        PreparedStatement stmt = null;
-        ResultSet result = null;
-        try {
-            connection = datasource.getConnection();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        try {
-            stmt = connection.prepareStatement("select pwd from user where username=?");
-            stmt.setString(1, (String) req.getParameter("username"));
-            result = stmt.executeQuery();
-            while (result.next()) {
-                System.out.println("读到的密码为" + result.getString(1));
-                if (result.getString(1).equals(req.getParameter("pwd")))
-                    return true;
-                else
-                    return false;
-            }
-        } catch (SQLException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-
-        throw new Exception("no such stu id");
-    }
 
     private void showResults(HttpServletRequest req, HttpServletResponse res) {
         Connection connection = null;
         PreparedStatement stmt = null;
         ResultSet result = null;
         try {
-            connection = datasource.getConnection();
+            connection = Database.getConnect();
         } catch (SQLException e) {
             e.printStackTrace();
+
         }
 
         try {
@@ -110,49 +60,19 @@ public class course extends HttpServlet {
         }
     }
 
-    private void handleTask(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException{
-        boolean cookieFound = false;
-        System.out.println(request.getParameter("username") + " req");
-        System.out.println(request.getParameter("pwd") + " req");
-
-        String username = request.getParameter("username");
-        String pwd = request.getParameter("pwd");
-
-        boolean valid = false;
-
-        HttpSession session = request.getSession(false);
-        if (session==null){
-            try {
-                valid = checkUserValid(request, response);
-            } catch (Exception e) {
-                response.sendRedirect("/user/login_error.html");
-            }
-            if (valid) {
-                session = request.getSession();
-                session.setAttribute("login", username);
-                request.setAttribute("login", username);
-                showResults(request, response);
-            } else
-                response.sendRedirect("/user/login_error.html");
-        }else {
-            username = (String) session.getAttribute("login");
-            request.setAttribute("login", username);
-            showResults(request, response);
-        }
-
-
-
+    private void handleTask(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        showResults(request, response);
 
     }
 
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        handleTask(request,response);
+        handleTask(request, response);
 
 
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        handleTask(request,response);
+        handleTask(request, response);
 
     }
 
@@ -177,8 +97,29 @@ public class course extends HttpServlet {
             out.println("</p>");
         } else {
             out.println("Your Course Test List: <br><p> ");
-            list.stream().forEach(courseTest -> out.println(courseTest.getCourseName() + ":" + ((courseTest.getCourseRemarks()==(-1))?"未参加测试":courseTest.getCourseRemarks()) + "<br>"));
+            list.stream().forEach(courseTest -> out.println(courseTest.getCourseName() + ":" + ((courseTest.getCourseRemarks() == (-1)) ? "未参加测试" : courseTest.getCourseRemarks()) + "<br>"));
             out.println("</p>");
         }
+        out.println("<p>" + "总人数为" + getTotalCount() + "</p>");
+        out.println("<p>" + "当前在线人数为" + getOnlineCount() + "</p>");
+        out.println("<p>" + "游客人数为" + (getTotalCount() - getOnlineCount()) + "</p>");
+        out.println("<form method='GET' action='" + res.encodeURL(req.getContextPath() + "/login") + "'>");
+        out.println("</p>");
+        out.println("<input type='submit' name='Logout' value='Logout'>");
+        out.println("</form>");
+        out.println("</body></html>");
+    }
+
+
+    private int getTotalCount() {
+        ServletContext Context = getServletContext();
+        int count = Integer.parseInt((String) Context.getAttribute("total"));
+        return count;
+    }
+
+    private int getOnlineCount() {
+        ServletContext Context = getServletContext();
+        int count = Integer.parseInt((String) Context.getAttribute("online"));
+        return count;
     }
 }
